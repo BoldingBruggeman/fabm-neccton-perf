@@ -1,0 +1,39 @@
+bottom_depth: 10
+bottom_depth_below_geoid: 10
+bottom_stress: 0.01
+cell_thickness: 10
+density: 1020
+depth: 5
+downwelling_photosynthetic_radiative_flux: 25
+downwelling_shortwave_flux: 40
+mole_fraction_of_carbon_dioxide_in_air: 350
+number_of_days_since_start_of_the_year: 90
+practical_salinity: 30
+pressure: 5
+surface_downwelling_photosynthetic_radiative_flux: 50
+surface_downwelling_shortwave_flux: 120
+temperature: 15
+wind_speed: 5
+ice_area_fraction: 0
+absorption_of_silt: 0.1
+latitude: 50
+longitude: 0
+mass_concentration_of_silt: 10
+cloud_area_fraction: 0.5
+atmosphere_mass_content_of_cloud_liquid_water: 0
+atmosphere_mass_content_of_ozone: 0
+atmosphere_mass_content_of_water_vapor: 0
+surface_specific_humidity: 0
+surface_temperature: 15
+surface_air_pressure: 100000
+vertical_tracer_diffusivity: 1e-5
+partial_pressure_of_n2o: 335
+runoff/source: 0    # for MOPS
+cfc11/x_A: 0  # for bb/gas
+cfc12/x_A: 0  # for bb/gas
+sf6/x_A: 0    # for bb/gas
+number_of_days_in_year: 365
+maximum_time_step: 86400
+N3_flux/flux: 0
+N4_flux/flux: 0
+gelbstoff_absorption_satellite: 0

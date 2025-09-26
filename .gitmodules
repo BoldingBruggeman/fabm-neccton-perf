@@ -17,3 +17,6 @@
 [submodule "bfm/spectral"]
 	path = bfm/spectral
 	url = ../../pmlmodelling/fabm-spectral.git
+[submodule "ersem/ersem"]
+	path = ersem/ersem
+	url = ../../pmlmodelling/ersem.git
