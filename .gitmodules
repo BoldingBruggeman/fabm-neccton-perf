@@ -1,0 +1,19 @@
+[submodule "fabm/ersem"]
+	path = ecosmo/ersem
+	url = ../../pmlmodelling/ersem.git
+[submodule "ecosmo/nersc"]
+	path = ecosmo/nersc
+	url = ../../nansencenter/nersc.git
+[submodule "fabm/fabm2"]
+	path = fabm/fabm2
+	url = ../../fabm-model/fabm.git
+[submodule "fabm/fabm3"]
+	path = fabm/fabm3
+	url = ../../fabm-model/fabm.git
+
+[submodule "bfm/ogs"]
+	path = bfm/ogs
+	url = ../../inogs/bfmforfabm.git
+[submodule "bfm/spectral"]
+	path = bfm/spectral
+	url = ../../pmlmodelling/fabm-spectral.git
