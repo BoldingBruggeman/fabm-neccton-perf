@@ -3,86 +3,119 @@ import subprocess
 import io
 import shutil
 import timeit
+import argparse
 
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.text
 import adjustText
 
-root = "ecosmo"
-extra_args = ["-DFABM_NERSC_BASE=nersc", "-DFABM_ERSEM_BASE=ersem"]
-host = "hycom"
-dt = 600
-nx = 15
-ny = 14
-nz = 50
 
-root = "bfm"
-extra_args = ["-DFABM_OGS_BASE=ogs", "-DFABM_SPECTRAL_BASE=spectral", "-DFABM_EXTRA_INSTITUTES=spectral"]
-host = "nemo"
-dt = 360
-nx = 16
-ny = 15
-nz = 124
-
-args = [
-    "--nx",
-    str(nx),
-    "--ny",
-    str(ny),
-    "--nz",
-    str(nz),
-    "--dt",
-    str(dt),
-    "-n",
-    str(int(round(30 * 3600 * 24 / dt))),
-    "--nomask",
-]
-
-flags = "/Qdiag-disable:10448"
-#flags += " /check=all"
-
-vtune_exe = os.path.join(os.environ["VTUNE_PROFILER_2024_DIR"], "bin64", "vtune.exe")
+class Model:
+    def __init__(
+        self,
+        root: str,
+        *,
+        cmake_args,
+        host: str = "nemo",
+        dt: float,
+        nx: int,
+        ny: int,
+        nz: int,
+    ):
+        self.root = root
+        self.cmake_args = [f"-DFABM_HOST={host}"] + cmake_args
+        self.simulate_args = [
+            "-s",
+            "--nx",
+            str(nx),
+            "--ny",
+            str(ny),
+            "--nz",
+            str(nz),
+            "--dt",
+            str(dt),
+            "-n",
+            str(int(round(30 * 3600 * 24 / dt))),
+            "--nomask",
+        ]
 
 
-def compile(fabm_dir="fabm3", build_type="RelWithDebInfo", clear=True):
+ecmso = Model(
+    root="ecosmo",
+    cmake_args=["-DFABM_NERSC_BASE=nersc", "-DFABM_ERSEM_BASE=ersem"],
+    host="hycom",
+    nx=15,
+    ny=14,
+    nz=50,
+    dt=600,
+)
+
+bfm = Model(
+    root="bfm",
+    cmake_args=[
+        "-DFABM_OGS_BASE=ogs",
+        "-DFABM_SPECTRAL_BASE=spectral",
+        "-DFABM_EXTRA_INSTITUTES=spectral",
+    ],
+    nx=16,
+    ny=15,
+    nz=124,
+    dt=360,
+)
+
+extra_compiler_flags = []
+# extra_compiler_flags += ["/check=all"]
+
+CMAKE_EXE = "cmake"
+VTUNE_EXE = os.path.join(os.environ["VTUNE_PROFILER_2024_DIR"], "bin64", "vtune.exe")
+
+
+def compile(
+    root, fabm_dir="fabm3", build_type="RelWithDebInfo", clear=True, extra_args=[]
+):
     build_dir = os.path.join(os.getcwd(), root, "build")
     if clear and os.path.exists(build_dir):
         shutil.rmtree(build_dir)
     env = os.environ.copy()
     env["LDFLAGS"] = f"/STACK:{32 * 1024 * 1024}"
-    env["FFLAGS"] = flags
-    subprocess.run(
+    env["FFLAGS"] = " ".join(extra_compiler_flags + ["/Qdiag-disable:10448"])
+    subprocess.check_call(
         [
-            "cmake",
+            CMAKE_EXE,
             "-S",
             os.path.join("..", "fabm", fabm_dir),
             "-B",
             "build",
-            f"-DFABM_HOST={host}",
             f"-DCMAKE_BUILD_TYPE={build_type}",
             "-DCMAKE_Fortran_FLAGS_RELWITHDEBINFO_INIT=/debug:inline-debug-info /QxHost",
         ]
         + extra_args,
-        check=True,
         cwd=root,
         env=env,
     )
-    subprocess.run(
-        ["cmake", "--build", "build", "--config", build_type, "--target", "test_host"],
-        cwd=root,
-        check=True,
+    subprocess.check_call(
+        [
+            CMAKE_EXE,
+            "--build",
+            build_dir,
+            "--config",
+            build_type,
+            "--target",
+            "test_host",
+        ]
     )
     return os.path.join(build_dir, build_type, "test_host.exe")
 
 
-def profile(exe, dir="r000hs"):
-    full_dir = os.path.join(os.getcwd(), root, dir)
-    #return full_dir
+def profile(exe, *, root=".", exp_name="r000hs", extra_args=[]):
+    full_dir = os.path.join(os.getcwd(), root, exp_name)
+    # return full_dir
     if os.path.exists(full_dir):
         shutil.rmtree(full_dir)
     subprocess.run(
         [
-            vtune_exe,
+            VTUNE_EXE,
             "-collect",
             "hotspots",
             "-knob",
@@ -98,24 +131,54 @@ def profile(exe, dir="r000hs"):
             exe,
             "-s",
         ]
-        + args,
+        + extra_args,
         check=True,
         cwd=root,
     )
     return full_dir
 
 
-def timeit_exe(exe, number=1):
+def timeit_exe(exe, *, root=".", number=1, extra_args=[]):
     def run():
-        subprocess.run([exe, "-s"] + args, check=True, cwd=root)
+        subprocess.run([exe, "-s"] + extra_args, check=True, cwd=root)
 
     t = timeit.timeit(run, number=number)
     return t / number
 
-def analyze(dir):
+
+class Node:
+    def __init__(self, name, time):
+        self.name = name
+        self.time = time
+        self.children = []
+
+    def find(self, name):
+        if self.name == name:
+            return self
+        for child in self.children:
+            n = child.find(name)
+            if n is not None:
+                return n
+        return None
+
+    def collect_endpoints(self, skip_names=()):
+        result = []
+        for child in self.children:
+            if (
+                child.name not in skip_names
+                and not child.name.startswith("_")
+                and child.time > 0.0
+            ):
+                result.append(child)
+            else:
+                result.extend(child.collect_endpoints(skip_names))
+        return result
+
+
+def analyze(dir: str):
     p = subprocess.run(
         [
-            vtune_exe,
+            VTUNE_EXE,
             "-report",
             "top-down",
             "-limit",
@@ -126,38 +189,9 @@ def analyze(dir):
             dir,
         ],
         check=True,
-        cwd=root,
         stdout=subprocess.PIPE,
         text=True,
     )
-
-    class Node:
-        def __init__(self, name, time):
-            self.name = name
-            self.time = time
-            self.children = []
-
-        def find(self, name):
-            if self.name == name:
-                return self
-            for child in self.children:
-                n = child.find(name)
-                if n is not None:
-                    return n
-            return None
-
-        def collect_endpoints(self, skip_names=()):
-            result = []
-            for child in self.children:
-                if (
-                    child.name not in skip_names
-                    and not child.name.startswith("_")
-                    and child.time > 0.0
-                ):
-                    result.append(child)
-                else:
-                    result.extend(child.collect_endpoints(skip_names))
-            return result
 
     # Build tree from indented names
     df = pd.read_csv(io.StringIO(p.stdout), sep="\t")
@@ -206,7 +240,7 @@ def analyze(dir):
         "FABM_mp_PROCESS_JOB_EVERYWHERE",
         "PROCESS_JOB",
         "intel_fast_memcpy",
-        "FABM_TYPES_mp_BASE_DO_COLUMN", # forwarding to get_light
+        "FABM_TYPES_mp_BASE_DO_COLUMN",  # forwarding to get_light
     ]
 
     tab20c = plt.color_sequences["tab10"]
@@ -225,10 +259,10 @@ def analyze(dir):
             )
 
     fig = plot(top_nodes)
-    fig.savefig("profile.png", dpi=300)
+    fig.savefig(os.path.join(dir, "profile.png"), dpi=300)
 
 
-def pretty_name(name):
+def pretty_name(name: str) -> str:
     if name.startswith("FABM_mp_"):
         name = name[8:]
     if name.endswith("_RHS"):
@@ -237,7 +271,7 @@ def pretty_name(name):
     return {"PROCESS_JOB_EVERYWHERE": "PREPARE_INPUTS"}.get(name, name).lower()
 
 
-def plot(top_nodes):
+def plot(top_nodes: list[Node]):
     fig, ax = plt.subplots(figsize=(10, 12))
     from matplotlib.patches import Rectangle
 
@@ -246,8 +280,8 @@ def plot(top_nodes):
     x_text = x + width + 0.05
 
     y = 0
-    texts = []
-    y_targets = []
+    texts: list[matplotlib.text.Text] = []
+    y_targets: list[float] = []
     for tgt in top_nodes:
         for node in tgt.endpoints:  # sorted(tgt, key=lambda x: -x[1])):
             dy = node.time / 100.0
@@ -322,7 +356,15 @@ def plot(top_nodes):
 
 
 if __name__ == "__main__":
-    exe = compile(clear=True)
-    #print(timeit_exe(exe))
-    dir = profile(exe)
-    analyze(dir)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("model", choices=["ecosmo", "bfm"])
+    parser.add_argument("exp", default="exp", nargs="?")
+    args = parser.parse_args()
+    target = {"ecosmo": ecmso, "bfm": bfm}[args.model]
+
+    exe = compile(target.root, extra_args=target.cmake_args)
+    # print(timeit_exe(exe, extra_args=target.simulate_args, root=target.root))
+    exp_dir = profile(
+        exe, root=target.root, exp_name=args.exp, extra_args=target.simulate_args
+    )
+    analyze(exp_dir)
