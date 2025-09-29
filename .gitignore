@@ -2,3 +2,4 @@ build
 *.png
 r000hs
 exp
+__pycache__

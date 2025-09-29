@@ -36,12 +36,12 @@ class Model:
             "-n",
             str(int(round(30 * 3600 * 24 / dt))),
             "--nomask",
-            "--nodiag"
+            "--nodiag",
         ]
 
 
 models = dict(
-    ecmso=Model(
+    ecosmo=Model(
         cmake_args=["-DFABM_NERSC_BASE=nersc", "-DFABM_ERSEM_BASE=ersem"],
         host="hycom",
         nx=15,
@@ -69,8 +69,6 @@ models = dict(
     ),
 )
 
-extra_compiler_flags = []
-# extra_compiler_flags += ["/check=all"]
 
 CMAKE_EXE = "cmake"
 VTUNE_EXE = os.path.join(os.environ["VTUNE_PROFILER_2024_DIR"], "bin64", "vtune.exe")
@@ -83,6 +81,8 @@ def compile(
     build_type="RelWithDebInfo",
     clear=True,
     extra_args=[],
+    extra_compiler_flags=[],
+    extra_release_flags=["/QxHost"]
 ):
     build_dir = os.path.join(os.getcwd(), root_dir, "build")
     if clear and os.path.exists(build_dir):
@@ -98,8 +98,8 @@ def compile(
             "-B",
             "build",
             f"-DCMAKE_BUILD_TYPE={build_type}",
-            "-DCMAKE_Fortran_FLAGS_RELWITHDEBINFO_INIT=/debug:inline-debug-info /QxHost",
-            "-DCMAKE_Fortran_FLAGS_RELEASE_INIT=/QxHost",
+            f"-DCMAKE_Fortran_FLAGS_RELWITHDEBINFO_INIT={' '.join(['/debug:inline-debug-info'] + extra_release_flags)}",
+            f"-DCMAKE_Fortran_FLAGS_RELEASE_INIT={' '.join(extra_release_flags)}",
         ]
         + extra_args,
         cwd=root_dir,
@@ -177,6 +177,7 @@ class Node:
         for child in self.children:
             if (
                 child.name not in skip_names
+                and not child.name.startswith("FABM_WORK_mp_")
                 and not child.name.startswith("_")
                 and child.time > 0.0
             ):
@@ -249,6 +250,7 @@ def analyze(dir: str):
         "FABM_WORK_mp_PROCESS_VERTICAL_SLICE",
         "FABM_WORK_mp_PROCESS_GLOBAL",
         "FABM_mp_PROCESS_JOB_EVERYWHERE",
+        "FABM_mp_PROCESS_JOB",
         "PROCESS_JOB",
         "intel_fast_memcpy",
         "FABM_TYPES_mp_BASE_DO_COLUMN",  # forwarding to get_light
@@ -373,7 +375,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
     target = models[args.model]
 
-    exe = compile(args.model, extra_args=target.cmake_args)
+    compiler_flags = ["/Ob0"]
+    # compiler_flags += ["/check=all"]
+
+    exe = compile(
+        args.model, extra_args=target.cmake_args, extra_compiler_flags=compiler_flags
+    )
     # print(timeit_exe(exe, extra_args=target.simulate_args, root_dir=args.model))
     exp_dir = profile(
         exe, root_dir=args.model, exp_name=args.exp, extra_args=target.simulate_args
