@@ -4,6 +4,7 @@ import io
 import shutil
 import timeit
 import argparse
+from typing import Optional
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -21,6 +22,9 @@ class Model:
         nx: int,
         ny: int,
         nz: int,
+        ndays: float = 30,
+        fabm_yaml: str = "fabm.yaml",
+        diagnostics: Optional[str] = None,
     ):
         self.cmake_args = [f"-DFABM_HOST={host}"] + cmake_args
         self.simulate_args = [
@@ -34,10 +38,15 @@ class Model:
             "--dt",
             str(dt),
             "-n",
-            str(int(round(30 * 3600 * 24 / dt))),
+            str(int(round(ndays * 3600 * 24 / dt))),
             "--nomask",
-            "--nodiag",
+            fabm_yaml,
         ]
+        self.duration = ndays
+        if diagnostics is not None:
+            self.simulate_args += ["--diag", diagnostics]
+        else:
+            self.simulate_args += ["--nodiag"]
 
 
 models = dict(
@@ -51,14 +60,17 @@ models = dict(
     ),
     bfm=Model(
         cmake_args=[
+            "-DFABM_EXTRA_INSTITUTES=spectral",
             "-DFABM_OGS_BASE=ogs",
             "-DFABM_SPECTRAL_BASE=spectral",
-            "-DFABM_EXTRA_INSTITUTES=spectral",
         ],
         nx=16,
         ny=15,
         nz=124,
         dt=360,
+        ndays=5,
+        # fabm_yaml="ogs/fabm_diatoms_60PFTs_no-repr_OASIM.yaml",
+        fabm_yaml="ogs/fabm_multispectral_2xDetritus.yaml",
     ),
     ersem=Model(
         cmake_args=["-DFABM_ERSEM_BASE=ersem"],
@@ -66,6 +78,21 @@ models = dict(
         ny=16,
         nz=51,
         dt=300,
+    ),
+    ergom=Model(
+        cmake_args=[
+            "-DFABM_EXTRA_INSTITUTES=bsh;spectral",
+            "-DFABM_BSH_BASE=ergom/src",
+            "-DFABM_SPECTRAL_BASE=spectral",
+            "-DFABM_OGS_BASE=ogs",
+        ],
+        nx=16,
+        ny=16,
+        nz=56,
+        dt=90,
+        #ndays=1,
+        fabm_yaml="fabm_spectral.yaml",
+        diagnostics="diag.yaml",
     ),
 )
 
@@ -82,7 +109,7 @@ def compile(
     clear=True,
     extra_args=[],
     extra_compiler_flags=[],
-    extra_release_flags=["/QxHost"]
+    extra_release_flags=["/QxHost"],
 ):
     build_dir = os.path.join(os.getcwd(), root_dir, "build")
     if clear and os.path.exists(build_dir):
@@ -158,10 +185,13 @@ def timeit_exe(exe, *, root_dir=".", number=1, extra_args=[]):
 
 
 class Node:
-    def __init__(self, name, time):
+    def __init__(self, name, time, parent: Optional["Node"] = None):
         self.name = name
         self.time = time
         self.children = []
+        self.parent = parent
+        if parent is not None:
+            parent.children.append(self)
 
     def find(self, name):
         if self.name == name:
@@ -187,7 +217,7 @@ class Node:
         return result
 
 
-def analyze(dir: str):
+def analyze(dir: str, title: Optional[str] = None):
     p = subprocess.run(
         [
             VTUNE_EXE,
@@ -212,31 +242,33 @@ def analyze(dir: str):
         name, time = row[:2]
         shortname = name.lstrip()
         depth = len(name) - len(shortname)
-        node = Node(shortname, time)
-        print("  " * depth + f"{shortname}: {time:.3f} %")
         while depth < len(stack):
             stack.pop()
-        if stack:
-            stack[-1].children.append(node)
+        parent = stack[-1] if stack else None
+        node = Node(shortname, time, parent)
+        print("  " * depth + f"{shortname}: {time:.3f} %")
         stack.append(node)
     tree = stack[0]
 
     top_names = [
-        "FABM_mp_PROCESS_JOB_EVERYWHERE",
+        "FABM_mp_PROCESS_JOB_EVERYWHERE", # =prepare_inputs
         "FABM_mp_GET_INTERIOR_SOURCES_RHS",
         "FABM_mp_GET_SURFACE_SOURCES",
         "FABM_mp_GET_BOTTOM_SOURCES_RHS",
+        "FABM_mp_GET_VERTICAL_MOVEMENT",
         "FABM_mp_CHECK_INTERIOR_STATE",
         "FABM_mp_CHECK_SURFACE_STATE",
         "FABM_mp_CHECK_BOTTOM_STATE",
         "FABM_mp_FINALIZE_OUTPUTS",
     ]
+    top_names.reverse()
 
     # Find known top-level routines
     top_nodes = []
     for name in top_names:
         node = tree.find(name)
-        if node is not None:
+        if node is not None and node.parent is not None:
+            node.parent.children.remove(node)
             top_nodes.append(node)
     total = sum(node.time for node in top_nodes)
     print(f"Total in known top-level routines: {total:.3f} %")
@@ -260,18 +292,20 @@ def analyze(dir: str):
     for i, node in enumerate(top_nodes):
         print(f"{pretty_name(node.name)}: {node.time:.3f} %")
         node.color = tab20c[i % len(tab20c)]
+        assert len(node.color) == 3
         node.endpoints = node.collect_endpoints(skip_names)
         endpoint_total = sum(child.time for child in node.endpoints)
         remaining = node.time - endpoint_total
         if remaining > 0.0:
             node.endpoints.append(Node("FABM", remaining))
         for j, child in enumerate(node.endpoints):
+            assert not hasattr(child, "color")
             child.color = node.color + (1.0 - 0.75 * (j + 0.5) / len(node.endpoints),)
             print(
                 f"  {pretty_name(child.name)}: {child.time:.3f} % ({child.time / node.time:.1%})"
             )
 
-    fig = plot(top_nodes)
+    fig = plot(top_nodes, title=title)
     fig.savefig(os.path.join(dir, "profile.png"), dpi=300)
 
 
@@ -284,7 +318,7 @@ def pretty_name(name: str) -> str:
     return {"PROCESS_JOB_EVERYWHERE": "PREPARE_INPUTS"}.get(name, name).lower()
 
 
-def plot(top_nodes: list[Node]):
+def plot(top_nodes: list[Node], title: Optional[str] = None):
     fig, ax = plt.subplots(figsize=(10, 12))
     from matplotlib.patches import Rectangle
 
@@ -365,6 +399,8 @@ def plot(top_nodes: list[Node]):
         y += dy
     shift_text(x - width, x_text, texts, y_targets)
     ax.set_axis_off()
+    if title is not None:
+        ax.set_title(title, loc="left")
     return fig
 
 
@@ -375,14 +411,17 @@ if __name__ == "__main__":
     args = parser.parse_args()
     target = models[args.model]
 
-    compiler_flags = ["/Ob0"]
+    compiler_flags = []
+    # compiler_flags += ["/Ob0"]
     # compiler_flags += ["/check=all"]
+
+    exe = compile(args.model, extra_args=target.cmake_args, build_type="Release")
+    tim = timeit_exe(exe, extra_args=target.simulate_args, root_dir=args.model)
 
     exe = compile(
         args.model, extra_args=target.cmake_args, extra_compiler_flags=compiler_flags
     )
-    # print(timeit_exe(exe, extra_args=target.simulate_args, root_dir=args.model))
     exp_dir = profile(
         exe, root_dir=args.model, exp_name=args.exp, extra_args=target.simulate_args
     )
-    analyze(exp_dir)
+    analyze(exp_dir, title=f"{args.model.upper()} runtime: {target.duration} days in {tim:.1f} s")

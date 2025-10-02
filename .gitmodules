@@ -20,3 +20,7 @@
 [submodule "ersem/ersem"]
 	path = ersem/ersem
 	url = ../../pmlmodelling/ersem.git
+[submodule "ergom/spectral"]
+	path = ergom/spectral
+	url = ../../pmlmodelling/fabm-spectral.git
+	branch = split

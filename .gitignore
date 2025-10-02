@@ -3,3 +3,6 @@ build
 r000hs
 exp
 __pycache__
+fabm_*.log
+fabm_graph.gv
+.gitkeep

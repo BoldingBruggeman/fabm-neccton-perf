@@ -1,0 +1,172 @@
+instances:
+  light:
+    model: gotm/light
+    parameters:
+       a:  0.58                                            # non-visible fraction of shortwave radiation, default
+       g1: 0.35                                            # e-folding depth of non-visible fraction, default 
+       g2: 5.0                                             # # e-folding depth of visible fraction, default = 23   
+  zenith_angle:
+    model: ogs/zenith_angle
+  light_atm:
+    model: spectral/atmosphere
+    parameters:
+      lambda_method: 1
+      compute_mean_wind: true
+      spectral_output: 1
+  relhum:
+    model: spectral/relhum
+  ozone:
+    model: spectral/ozone
+  lightspectral:
+    model: ogs/light_spectral_OASIM_NEMO
+    parameters:
+       nlt: 33                                             # number of wavelenghts considered
+       npft: 3                                             # number of PFT considered
+       SdomX1: 0.0175                                      # spectral slope acdom of X1c [nm-1]
+       X1coeff: 0.015                                      # acdom coeff of X1c at lambda_aCDOM [m2/mgC]
+       SdomX2: 0.0162                                      # spectral slope acdom of X2c [nm-1]
+       X2coeff: 0.015                                      # acdom coeff of X2c at lambda_aCDOM [m2/mgC]
+       SdomX3: 0.0180                                      # spectral slope acdom of X3c [nm-1]
+       X3coeff: 0.015                                      # acdom coeff of X3c at lambda_aCDOM [m2/mgC]
+       Xmincoeff: 0.00                                     # minimum aCDOM [m-1] at 450nm       
+       lambda_aCDOM: 450                                   # lambda at which reference acdom is given [nm]
+       compute_acdom: .FALSE.                               # logical [T=compute coeffs, F=use file]
+       Sapar: 0.013                                        # spectral slope anap [nm-1]
+       lambda_aPart: 440                                   # lambda at which reference anap is given [nm]
+       aparcoeff: 0.00058                                  # anap coeff at lambda_aPart [m2/mgC]
+       Sbpar: 0.5                                          # exponent bnap [-]
+       lambda_bPart: 550                                   # lambda at which reference bnap is given [nm]
+       bparcoeff: 0.0120                                   # bnap coeff at lambda_bPart [m2/mgC]
+       bb_to_b: 0.005                                      # back to total scatter POC [-]
+       compute_anap: .FALSE.                                # logical [T=comptute coeffs, F=use file]
+       p_epsP1: 0.0152                            # mean absorption coefficient from 400-700nm for P1 [m2 mgChl-1]
+       p_epsP2: 0.0293                            # mean absorption coefficient from 400-700nm for P2 [m2 mgChl-1]
+       p_epsP3: 0.0443                            # mean absorption coefficient from 400-700nm for P3 [m2 mgChl-1]
+       p_epsP4: 0.0178                            # mean absorption coefficient from 400-700nm for P4 [m2 mgChl-1]
+       compute_aph: .FALSE.           # logical flag to scale aph [T=use file scaled to p_epsPn or F=use file unscaled]
+       p_bpsP1: 0.0140                            # mean scattering coefficient from 400-700nm for P1 [m2 mgC-1]
+       p_bpsP2: 0.0077                            # mean scattering coefficient from 400-700nm for P2 [m2 mgC-1]
+       p_bpsP3: 0.0101                            # mean scattering coefficient from 400-700nm for P3 [m2 mgC-1]
+       p_bpsP4: 0.0112                            # mean scattering coefficient from 400-700nm for P4 [m2 mgC-1]
+       compute_bph: .FALSE.           # logical flag to scale bph [T=use file scaled to p_bpsPn or F=use file unscaled]
+       p_bbrP1: 0.0020                            # non-spectral backscattering to total scattering ratio for P1 [-]
+       p_bbrP2: 0.0071                            # non-spectral backscattering to total scattering ratio for P2 [-]
+       p_bbrP3: 0.0039                            # non-spectral backscattering to total scattering ratio for P3 [-]
+       p_bbrP4: 0.0030                            # non-spectral backscattering to total scattering ratio for P4 [-]
+       compute_bbc: .FALSE.           # logical flag to compute bbc or read it from file [T=compute bc*bbr or F=use file]
+       p_useSPM: .FALSE.                    # if true requires input data specification in gotm.yaml
+       p_spmc1: 0.016                       # basal absorption for minimal absorption at long wavelengths [m2 g-1]
+       p_spmc2: 0.054                       # specific absorption at the reference wavelength [m2 g-1]
+       p_spmS: 0.012                        # slope for exponential decline of aSPM with wavelength [nm-1]
+       lambda_aSPM: 440                     # wavelength where reference aSPM (c2) is given
+       p_spmb: 0.7                          # specific scattering at 555nm [m2 g-1]
+       p_spmbb: 0.008                       # specific backscattering  at 555nm  [m2 g-1]
+    coupling:
+#       aP1chl  : ergom/chl_a_lpp_C # (large phyto) diatom lpp
+#       P2c  : standard_variable(carbon_P2) # (nano phyto) flagellates spp
+#       P3c  : standard_variable(carbon_P3) # (pico phyto) blue-green cya
+#       P4c  : # (micro phyto) 
+       X1c  : ergom/cdom1_C              # labile
+       X2c  : ergom/cdom2_C # carbon_cdom_2              # semi-labile
+       X3c  : ergom/cdom3_C # carbon_cdom_3              # semi-refractory
+       R6c  : ergom/det_C # carbon_detritus      # detritus mg C/m3
+       direct_band1  : light_atm/dir_sf_band1
+       diffuse_band1 : light_atm/dif_sf_band1
+       direct_band2  : light_atm/dir_sf_band2
+       diffuse_band2 : light_atm/dif_sf_band2
+       direct_band3  : light_atm/dir_sf_band3
+       diffuse_band3 : light_atm/dif_sf_band3
+       direct_band4  : light_atm/dir_sf_band4
+       diffuse_band4 : light_atm/dif_sf_band4
+       direct_band5  : light_atm/dir_sf_band5
+       diffuse_band5 : light_atm/dif_sf_band5
+       direct_band6  : light_atm/dir_sf_band6
+       diffuse_band6 : light_atm/dif_sf_band6
+       direct_band7  : light_atm/dir_sf_band7
+       diffuse_band7 : light_atm/dif_sf_band7
+       direct_band8  : light_atm/dir_sf_band8
+       diffuse_band8 : light_atm/dif_sf_band8
+       direct_band9  : light_atm/dir_sf_band9
+       diffuse_band9 : light_atm/dif_sf_band9
+       direct_band10  : light_atm/dir_sf_band10
+       diffuse_band10 : light_atm/dif_sf_band10
+       direct_band11  : light_atm/dir_sf_band11
+       diffuse_band11 : light_atm/dif_sf_band11
+       direct_band12  : light_atm/dir_sf_band12
+       diffuse_band12 : light_atm/dif_sf_band12
+       direct_band13  : light_atm/dir_sf_band13
+       diffuse_band13 : light_atm/dif_sf_band13
+       direct_band14  : light_atm/dir_sf_band14
+       diffuse_band14 : light_atm/dif_sf_band14
+       direct_band15  : light_atm/dir_sf_band15
+       diffuse_band15 : light_atm/dif_sf_band15
+       direct_band16  : light_atm/dir_sf_band16
+       diffuse_band16 : light_atm/dif_sf_band16
+       direct_band17  : light_atm/dir_sf_band17
+       diffuse_band17 : light_atm/dif_sf_band17
+       direct_band18  : light_atm/dir_sf_band18
+       diffuse_band18 : light_atm/dif_sf_band18
+       direct_band19  : light_atm/dir_sf_band19
+       diffuse_band19 : light_atm/dif_sf_band19
+       direct_band20  : light_atm/dir_sf_band20
+       diffuse_band20 : light_atm/dif_sf_band20
+       direct_band21  : light_atm/dir_sf_band21
+       diffuse_band21 : light_atm/dif_sf_band21
+       direct_band22  : light_atm/dir_sf_band22
+       diffuse_band22 : light_atm/dif_sf_band22
+       direct_band23  : light_atm/dir_sf_band23
+       diffuse_band23 : light_atm/dif_sf_band23
+       direct_band24  : light_atm/dir_sf_band24
+       diffuse_band24 : light_atm/dif_sf_band24
+       direct_band25  : light_atm/dir_sf_band25
+       diffuse_band25 : light_atm/dif_sf_band25
+       direct_band26  : light_atm/dir_sf_band26
+       diffuse_band26 : light_atm/dif_sf_band26
+       direct_band27  : light_atm/dir_sf_band27
+       diffuse_band27 : light_atm/dif_sf_band27
+       direct_band28  : light_atm/dir_sf_band28
+       diffuse_band28 : light_atm/dif_sf_band28
+       direct_band29  : light_atm/dir_sf_band29
+       diffuse_band29 : light_atm/dif_sf_band29
+       direct_band30  : light_atm/dir_sf_band30
+       diffuse_band30 : light_atm/dif_sf_band30
+       direct_band31  : light_atm/dir_sf_band31
+       diffuse_band31 : light_atm/dif_sf_band31
+       direct_band32  : light_atm/dir_sf_band32
+       diffuse_band32 : light_atm/dif_sf_band32
+       direct_band33  : light_atm/dir_sf_band33
+       diffuse_band33 : light_atm/dif_sf_band33
+       costheta_r : light_atm/costheta_r
+
+  ergom:
+    model: bsh/ergom_neccton
+    parameters:
+    initialization:    
+      t_n2: 0.000876379141118377
+      t_o2: 0.000363177998          
+      t_dic: 0.00239279260858893          
+      t_nh4: 1.81354877781814E-8          
+      t_no3: 4.1879E-6          
+      t_po4: 3.0079121415838E-7
+      t_spp: 6.93764263814955E-8
+      t_zoo: 2.19068265749911E-8          
+      t_h2s: 2.58994659655635E-15          
+      t_sul: 2.32256460606909E-16           
+      t_alk: 0.001502798          
+      t_ipw: 2.19066098594567E-9          
+      t_lpp: 9.10495501216246E-8          
+      t_cya: 1.61379898333536E-9          
+      t_det: 4.39991616474344E-8          
+      t_sed: 0.2365          
+      t_ips: 1.78E-5		# al
+      t_cdom: 5.85E-6		# al
+      t_poc: 2.3E-6		# al
+      t_pocn: 3.7E-9		# al
+      t_pocp: 1.7E-10		# al
+      t_doc: 3.0E-8		# al
+      t_dop: 4.0E-8		# al
+      t_don: 2.4E-8		# al
+      t_sed_poc: 11.12E-2	# al
+      t_sed_pocn: 0.0051	# al
+      t_sed_pocp: 0.00015	# al
+
