@@ -58,6 +58,7 @@ models = dict(
         nz=50,
         dt=600,
         fabm_yaml="nersc/dvm/fabm.yaml",
+        # fabm_yaml="nersc-modular/modular/fabm.yaml.modular",
     ),
     bfm=Model(
         cmake_args=[
@@ -70,8 +71,8 @@ models = dict(
         nz=124,
         dt=360,
         ndays=5,
-        # fabm_yaml="ogs/fabm_diatoms_60PFTs_no-repr_OASIM.yaml",
         fabm_yaml="ogs/fabm_multispectral_2xDetritus.yaml",
+        # fabm_yaml="ogs/fabm_diatoms_60PFTs_no-repr_OASIM.yaml",
     ),
     ersem=Model(
         cmake_args=["-DFABM_ERSEM_BASE=ersem"],
@@ -92,7 +93,7 @@ models = dict(
         ny=16,
         nz=56,
         dt=90,
-        #ndays=1,
+        # ndays=1,
         fabm_yaml="fabm_spectral.yaml",
         diagnostics="diag.yaml",
     ),
@@ -219,7 +220,7 @@ class Node:
         return result
 
 
-def analyze(dir: str, title: Optional[str] = None):
+def analyze(dir: str, title: Optional[str] = None, note: Optional[str] = None):
     p = subprocess.run(
         [
             VTUNE_EXE,
@@ -253,7 +254,7 @@ def analyze(dir: str, title: Optional[str] = None):
     tree = stack[0]
 
     top_names = [
-        "FABM_mp_PROCESS_JOB_EVERYWHERE", # =prepare_inputs
+        "FABM_mp_PROCESS_JOB_EVERYWHERE",  # =prepare_inputs
         "FABM_mp_GET_INTERIOR_SOURCES_RHS",
         "FABM_mp_GET_SURFACE_SOURCES",
         "FABM_mp_GET_BOTTOM_SOURCES_RHS",
@@ -307,7 +308,7 @@ def analyze(dir: str, title: Optional[str] = None):
                 f"  {pretty_name(child.name)}: {child.time:.3f} % ({child.time / node.time:.1%})"
             )
 
-    fig = plot(top_nodes, title=title)
+    fig = plot(top_nodes, title=title, note=note)
     fig.savefig(os.path.join(dir, "profile.png"), dpi=300)
 
 
@@ -320,7 +321,9 @@ def pretty_name(name: str) -> str:
     return {"PROCESS_JOB_EVERYWHERE": "PREPARE_INPUTS"}.get(name, name).lower()
 
 
-def plot(top_nodes: list[Node], title: Optional[str] = None):
+def plot(
+    top_nodes: list[Node], title: Optional[str] = None, note: Optional[str] = None
+):
     fig, ax = plt.subplots(figsize=(10, 12))
     from matplotlib.patches import Rectangle
 
@@ -403,6 +406,8 @@ def plot(top_nodes: list[Node], title: Optional[str] = None):
     ax.set_axis_off()
     if title is not None:
         ax.set_title(title, loc="left")
+    if note is not None:
+        fig.text(0.01, 0.01, note, ha="left", va="bottom")
     return fig
 
 
@@ -426,4 +431,8 @@ if __name__ == "__main__":
     exp_dir = profile(
         exe, root_dir=args.model, exp_name=args.exp, extra_args=target.simulate_args
     )
-    analyze(exp_dir, title=f"{args.model.upper()} runtime: {target.duration} days in {tim:.1f} s")
+    analyze(
+        exp_dir,
+        title=f"{args.model.upper()} runtime: {target.duration} days in {tim:.1f} s",
+        note=f"cmake args: {' '.join(target.cmake_args)}\nsimulate args: {' '.join(target.simulate_args)}",
+    )

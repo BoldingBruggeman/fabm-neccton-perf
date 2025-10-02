@@ -10,13 +10,13 @@
 [submodule "fabm/fabm3"]
 	path = fabm/fabm3
 	url = ../../fabm-model/fabm.git
-
 [submodule "bfm/ogs"]
 	path = bfm/ogs
 	url = ../../inogs/bfmforfabm.git
 [submodule "bfm/spectral"]
 	path = bfm/spectral
 	url = ../../pmlmodelling/fabm-spectral.git
+	branch = split
 [submodule "ersem/ersem"]
 	path = ersem/ersem
 	url = ../../pmlmodelling/ersem.git
@@ -24,3 +24,7 @@
 	path = ergom/spectral
 	url = ../../pmlmodelling/fabm-spectral.git
 	branch = split
+[submodule "ecosmo/nersc-latest"]
+	path = ecosmo/nersc-modular
+	url = ../../nansencenter/nersc.git
+	branch = modular
