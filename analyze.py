@@ -57,6 +57,7 @@ models = dict(
         ny=14,
         nz=50,
         dt=600,
+        fabm_yaml="nersc/dvm/fabm.yaml",
     ),
     bfm=Model(
         cmake_args=[
@@ -78,6 +79,7 @@ models = dict(
         ny=16,
         nz=51,
         dt=300,
+        fabm_yaml="fabm.yaml.UKMO.operational",
     ),
     ergom=Model(
         cmake_args=[
