@@ -130,6 +130,7 @@ def compile(
             f"-DCMAKE_BUILD_TYPE={build_type}",
             f"-DCMAKE_Fortran_FLAGS_RELWITHDEBINFO_INIT={' '.join(['/debug:inline-debug-info'] + extra_release_flags)}",
             f"-DCMAKE_Fortran_FLAGS_RELEASE_INIT={' '.join(extra_release_flags)}",
+            f"-DCMAKE_Fortran_FLAGS_DEBUG_INIT=/check:all",
         ]
         + extra_args,
         cwd=root_dir,
