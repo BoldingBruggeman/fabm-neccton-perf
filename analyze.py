@@ -26,27 +26,35 @@ class Model:
         fabm_yaml: str = "fabm.yaml",
         diagnostics: Optional[str] = None,
     ):
+        self.nx = nx
+        self.ny = ny
+        self.nz = nz
+        self.dt = dt
+        self.fabm_yaml = fabm_yaml
+        self.ndays = ndays
+        self.diagnostics = diagnostics
         self.cmake_args = [f"-DFABM_HOST={host}"] + cmake_args
-        self.simulate_args = [
-            "-s",
+
+    @property
+    def simulate_args(self) -> list[str]:
+        args = [
             "--nx",
-            str(nx),
+            str(self.nx),
             "--ny",
-            str(ny),
+            str(self.ny),
             "--nz",
-            str(nz),
+            str(self.nz),
             "--dt",
-            str(dt),
+            str(self.dt),
             "-n",
-            str(int(round(ndays * 3600 * 24 / dt))),
+            str(int(round(self.ndays * 3600 * 24 / self.dt))),
             "--nomask",
-            fabm_yaml,
         ]
-        self.duration = ndays
-        if diagnostics is not None:
-            self.simulate_args += ["--diag", diagnostics]
+        if self.diagnostics is not None:
+            args += ["--diag", self.diagnostics]
         else:
-            self.simulate_args += ["--nodiag"]
+            args += ["--nodiag"]
+        return args + ["-s", self.fabm_yaml]
 
 
 models = dict(
@@ -435,6 +443,6 @@ if __name__ == "__main__":
     )
     analyze(
         exp_dir,
-        title=f"{args.model.upper()} runtime: {target.duration} days in {tim:.1f} s",
+        title=f"{args.model.upper()} runtime: {target.ndays} days in {tim:.1f} s",
         note=f"cmake args: {' '.join(target.cmake_args)}\nsimulate args: {' '.join(target.simulate_args)}",
     )
