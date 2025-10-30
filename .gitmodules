@@ -28,3 +28,6 @@
 	path = ecosmo/nersc-modular
 	url = ../../nansencenter/nersc.git
 	branch = modular
+[submodule "pisces/fabm-pisces-4.2"]
+	path = pisces/fabm-pisces-4.2
+	url = https://gitlab.mercator-ocean.fr/pub/neccton/fabm-pisces-4.2.git

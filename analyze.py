@@ -106,6 +106,15 @@ models = dict(
         fabm_yaml="fabm_spectral.yaml",
         diagnostics="diag.yaml",
     ),
+    pisces=Model(
+        cmake_args=["-DFABM_PISCES_BASE=fabm-pisces-4.2"],
+        nx=20,
+        ny=24,
+        nz=75,
+        dt=3600,
+        ndays=200,
+        fabm_yaml="fabm-pisces-4.2/testcases/fabm.yaml",
+    ),
 )
 
 
