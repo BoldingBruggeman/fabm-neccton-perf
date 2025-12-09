@@ -5,6 +5,8 @@ import shutil
 import timeit
 import argparse
 from typing import Optional
+from pathlib import Path
+from collections.abc import Container
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -16,7 +18,7 @@ class Model:
     def __init__(
         self,
         *,
-        cmake_args,
+        cmake_args: list[str],
         host: str = "nemo",
         dt: float,
         nx: int,
@@ -59,7 +61,10 @@ class Model:
 
 models = dict(
     ecosmo=Model(
-        cmake_args=["-DFABM_NERSC_BASE=nersc", "-DFABM_ERSEM_BASE=ersem"],
+        cmake_args=[
+            "-DFABM_NERSC_BASE=nersc",  # "-DFABM_NERSC_BASE=nersc-modular"
+            "-DFABM_ERSEM_BASE=ersem",
+        ],
         host="hycom",
         nx=15,
         ny=14,
@@ -118,22 +123,27 @@ models = dict(
 )
 
 
+FABM_ROOT = Path(__file__).parent.resolve() / "fabm"
 CMAKE_EXE = "cmake"
-VTUNE_EXE = os.path.join(os.environ["VTUNE_PROFILER_2024_DIR"], "bin64", "vtune.exe")
+VTUNE_EXE = Path(os.environ["VTUNE_PROFILER_2024_DIR"]) / "bin64/vtune.exe"
 
 
 def compile(
-    root_dir: str,
+    root_dir: Path,
     *,
-    fabm_dir="fabm3",
-    build_type="RelWithDebInfo",
-    clear=True,
-    extra_args=[],
-    extra_compiler_flags=[],
-    extra_release_flags=["/QxHost"],
-):
-    build_dir = os.path.join(os.getcwd(), root_dir, "build")
-    if clear and os.path.exists(build_dir):
+    fabm_dir: str = "fabm3",
+    build_type: str = "RelWithDebInfo",
+    clear: bool = True,
+    extra_args: list[str] = [],
+    extra_compiler_flags: list[str] = [],
+    extra_release_flags: list[str] = ["/QxHost"],
+    build_dir: Optional[Path] = None,
+) -> Path:
+
+    if build_dir is None:
+        build_dir = Path("build")
+    build_dir = (root_dir / build_dir).resolve()
+    if clear and build_dir.exists():
         shutil.rmtree(build_dir)
     env = os.environ.copy()
     env["LDFLAGS"] = f"/STACK:{32 * 1024 * 1024}"
@@ -142,9 +152,9 @@ def compile(
         [
             CMAKE_EXE,
             "-S",
-            os.path.join("..", "fabm", fabm_dir),
+            FABM_ROOT / fabm_dir,
             "-B",
-            "build",
+            build_dir,
             f"-DCMAKE_BUILD_TYPE={build_type}",
             f"-DCMAKE_Fortran_FLAGS_RELWITHDEBINFO_INIT={' '.join(['/debug:inline-debug-info'] + extra_release_flags)}",
             f"-DCMAKE_Fortran_FLAGS_RELEASE_INIT={' '.join(extra_release_flags)}",
@@ -165,13 +175,19 @@ def compile(
             "test_host",
         ]
     )
-    return os.path.join(build_dir, build_type, "test_host.exe")
+    return build_dir / build_type / "test_host.exe"
 
 
-def profile(exe, *, root_dir=".", exp_name="r000hs", extra_args=[]):
-    full_dir = os.path.join(os.getcwd(), root_dir, exp_name)
+def profile(
+    exe: Path,
+    *,
+    root_dir: Path = Path("."),
+    exp_name: str = "r000hs",
+    extra_args: list[str] = [],
+) -> Path:
+    full_dir = (root_dir / exp_name).resolve()
     # return full_dir
-    if os.path.exists(full_dir):
+    if full_dir.exists():
         shutil.rmtree(full_dir)
     subprocess.run(
         [
@@ -198,24 +214,35 @@ def profile(exe, *, root_dir=".", exp_name="r000hs", extra_args=[]):
     return full_dir
 
 
-def timeit_exe(exe, *, root_dir=".", number=1, extra_args=[]):
+def timeit_exe(
+    exe: Path,
+    *,
+    root_dir: Path = Path("."),
+    number: int = 1,
+    extra_args: list[str] = [],
+) -> float:
     def run():
-        subprocess.run([exe, "-s"] + extra_args, check=True, cwd=root_dir)
+        subprocess.run(
+            [exe, "-s"] + extra_args,
+            check=True,
+            cwd=root_dir,
+            creationflags=subprocess.HIGH_PRIORITY_CLASS,
+        )
 
     t = timeit.timeit(run, number=number)
     return t / number
 
 
 class Node:
-    def __init__(self, name, time, parent: Optional["Node"] = None):
+    def __init__(self, name: str, time: float, parent: Optional["Node"] = None):
         self.name = name
         self.time = time
-        self.children = []
+        self.children: list[Node] = []
         self.parent = parent
         if parent is not None:
             parent.children.append(self)
 
-    def find(self, name):
+    def find(self, name: str) -> Optional["Node"]:
         if self.name == name:
             return self
         for child in self.children:
@@ -224,8 +251,8 @@ class Node:
                 return n
         return None
 
-    def collect_endpoints(self, skip_names=()):
-        result = []
+    def collect_endpoints(self, skip_names: Container[str] = ()) -> list["Node"]:
+        result: list[Node] = []
         for child in self.children:
             if (
                 child.name not in skip_names
@@ -239,7 +266,7 @@ class Node:
         return result
 
 
-def analyze(dir: str, title: Optional[str] = None, note: Optional[str] = None):
+def analyze(dir: Path, title: Optional[str] = None, note: Optional[str] = None):
     p = subprocess.run(
         [
             VTUNE_EXE,
@@ -328,7 +355,9 @@ def analyze(dir: str, title: Optional[str] = None, note: Optional[str] = None):
             )
 
     fig = plot(top_nodes, title=title, note=note)
-    fig.savefig(os.path.join(dir, "profile.png"), dpi=300)
+    png = dir / "profile.png"
+    fig.savefig(png, dpi=300)
+    print(f"Profile plot saved to {png}")
 
 
 def pretty_name(name: str) -> str:
@@ -441,14 +470,15 @@ if __name__ == "__main__":
     # compiler_flags += ["/Ob0"]
     # compiler_flags += ["/check=all"]
 
-    exe = compile(args.model, extra_args=target.cmake_args, build_type="Release")
-    tim = timeit_exe(exe, extra_args=target.simulate_args, root_dir=args.model)
+    root_dir = Path(args.model)
+    exe = compile(root_dir, extra_args=target.cmake_args, build_type="Release")
+    tim = timeit_exe(exe, extra_args=target.simulate_args, root_dir=root_dir)
 
     exe = compile(
-        args.model, extra_args=target.cmake_args, extra_compiler_flags=compiler_flags
+        root_dir, extra_args=target.cmake_args, extra_compiler_flags=compiler_flags
     )
     exp_dir = profile(
-        exe, root_dir=args.model, exp_name=args.exp, extra_args=target.simulate_args
+        exe, root_dir=root_dir, exp_name=args.exp, extra_args=target.simulate_args
     )
     analyze(
         exp_dir,
