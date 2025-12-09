@@ -221,13 +221,12 @@ def timeit_exe(
     number: int = 1,
     extra_args: list[str] = [],
 ) -> float:
+    kwargs = {}
+    if hasattr(subprocess, "HIGH_PRIORITY_CLASS"):
+        kwargs["creationflags"] = subprocess.HIGH_PRIORITY_CLASS
+
     def run():
-        subprocess.run(
-            [exe, "-s"] + extra_args,
-            check=True,
-            cwd=root_dir,
-            creationflags=subprocess.HIGH_PRIORITY_CLASS,
-        )
+        subprocess.run([exe, "-s"] + extra_args, check=True, cwd=root_dir, **kwargs)
 
     t = timeit.timeit(run, number=number)
     return t / number
